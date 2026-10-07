@@ -1,7 +1,199 @@
-﻿@page "/"
+@page "/"
+@using AccessRequestHub.Data
+@using AccessRequestHub.DTOs
+@using AccessRequestHub.Exceptions
+@using AccessRequestHub.Models
+@using AccessRequestHub.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.DependencyInjection
+@inject CurrentUserService CurrentUserSvc
+@inject IServiceProvider Sp
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Create Request</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Create Access Request</h1>
 
-Welcome to your new app.
+@if (profile != null && !profile.CanCreate)
+{
+    <div class="alert alert-warning">
+        You do not have a manager assigned, so you cannot create access requests.
+    </div>
+}
+else if (profile != null)
+{
+    <div class="card p-4 mt-4 shadow-sm" style="max-width: 600px;">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+        @if (successMessage != null)
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <EditForm Model="model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            
+            <div class="mb-3">
+                <label class="form-label">Application</label>
+                <InputSelect @bind-Value="model.ApplicationId" class="form-select">
+                    <option value="">-- Select Application --</option>
+                    @if (applications != null)
+                    {
+                        @foreach (var app in applications)
+                        {
+                            <option value="@app.Id">@app.Name</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Environment</label>
+                <InputSelect @bind-Value="model.Environment" class="form-select">
+                    @foreach (var env in Enum.GetValues<EnvironmentType>())
+                    {
+                        <option value="@env">@env.ToString()</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Access Level</label>
+                <InputSelect @bind-Value="model.AccessLevel" class="form-select">
+                    @foreach (var lvl in Enum.GetValues<AccessLevel>())
+                    {
+                        <option value="@lvl">@lvl.ToString()</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Justification</label>
+                <InputTextArea @bind-Value="model.Justification" class="form-control" rows="3"></InputTextArea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                }
+                Submit Request
+            </button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private Endpoints.UserProfileDto? profile;
+    private List<Application>? applications;
+    
+    private CreateRequestModel model = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUserSvc.OnUserChanged += UpdateProfile;
+        
+        using var scope = Sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        applications = await db.Applications.ToListAsync();
+
+        await LoadProfileAsync();
+    }
+
+    private async void UpdateProfile()
+    {
+        await LoadProfileAsync();
+        model = new CreateRequestModel();
+        errorMessage = null;
+        successMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        if (CurrentUserSvc.User == null)
+        {
+            profile = null;
+            return;
+        }
+
+        using var scope = Sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        
+        var user = CurrentUserSvc.User;
+        profile = new Endpoints.UserProfileDto(
+            user.Id, user.Email, user.DisplayName, user.Role.ToString(),
+            user.ManagerId.HasValue, false, Array.Empty<Endpoints.OwnedApplicationDto>(), false
+        );
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (model.ApplicationId == Guid.Empty)
+        {
+            errorMessage = "Please select an application.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(model.Justification))
+        {
+            errorMessage = "Justification cannot be empty.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            using var scope = Sp.CreateScope();
+            var scopedUserSvc = scope.ServiceProvider.GetRequiredService<CurrentUserService>();
+            scopedUserSvc.User = CurrentUserSvc.User;
+            var service = scope.ServiceProvider.GetRequiredService<AccessRequestService>();
+            
+            var payload = new CreateRequestDto(
+                Guid.NewGuid(), 
+                model.ApplicationId, 
+                model.Environment, 
+                model.AccessLevel, 
+                model.Justification
+            );
+            
+            var (request, isNew) = await service.CreateRequestAsync(payload);
+            successMessage = $"Request created successfully! ID: {request.Id}";
+            model = new CreateRequestModel(); // Reset form
+        }
+        catch (AppException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            errorMessage = "An unexpected error occurred.";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        CurrentUserSvc.OnUserChanged -= UpdateProfile;
+    }
+
+    public class CreateRequestModel
+    {
+        public Guid ApplicationId { get; set; }
+        public EnvironmentType Environment { get; set; } = EnvironmentType.NonProduction;
+        public AccessLevel AccessLevel { get; set; } = AccessLevel.Read;
+        public string Justification { get; set; } = "";
+    }
+}

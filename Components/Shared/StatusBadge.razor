@@ -1,0 +1,21 @@
+@code {
+    [Parameter]
+    public string Status { get; set; } = "";
+}
+
+@if (Status == "PendingManager" || Status == "PendingSystemOwner")
+{
+    <span class="badge bg-warning text-dark">@Status</span>
+}
+else if (Status == "Approved")
+{
+    <span class="badge bg-success">@Status</span>
+}
+else if (Status == "Rejected")
+{
+    <span class="badge bg-danger">@Status</span>
+}
+else
+{
+    <span class="badge bg-secondary">@Status</span>
+}

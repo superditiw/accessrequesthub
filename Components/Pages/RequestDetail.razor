@@ -1,0 +1,309 @@
+@page "/requests/{Id:guid}"
+@using AccessRequestHub.DTOs
+@using AccessRequestHub.Exceptions
+@using AccessRequestHub.Services
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.EntityFrameworkCore
+@inject CurrentUserService CurrentUserSvc
+@inject IServiceProvider Sp
+@implements IDisposable
+
+<PageTitle>Request Detail</PageTitle>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (request == null)
+{
+    <div class="alert alert-danger">Request not found or you don't have permission to view it.</div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <h2>Request Detail</h2>
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Request ID</div>
+                        <div class="col-sm-8">@request.Id</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Requester</div>
+                        <div class="col-sm-8 fw-bold">@request.RequesterEmail</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Application</div>
+                        <div class="col-sm-8">@request.ApplicationName</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Environment</div>
+                        <div class="col-sm-8"><span class="badge bg-secondary">@request.Environment</span></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Access Level</div>
+                        <div class="col-sm-8">@request.AccessLevel</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">High Risk</div>
+                        <div class="col-sm-8">
+                            @if (request.IsHighRisk)
+                            {
+                                <span class="badge bg-danger">Yes</span>
+                            }
+                            else
+                            {
+                                <span>No</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Status</div>
+                        <div class="col-sm-8"><StatusBadge Status="@request.Status" /></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Policy Version</div>
+                        <div class="col-sm-8"><code>@request.PolicyVersionCode</code></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Data Version</div>
+                        <div class="col-sm-8">@request.Version</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Created At</div>
+                        <div class="col-sm-8">@request.CreatedAt.ToLocalTime().ToString("f")</div>
+                    </div>
+                    <hr />
+                    <div class="row mb-2">
+                        <div class="col-sm-12 text-muted">Justification</div>
+                        <div class="col-sm-12 mt-1">
+                            <div class="p-3 bg-light rounded border">
+                                @request.Justification
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (canApproveOrReject && (request.Status == "PendingManager" || request.Status == "PendingSystemOwner"))
+            {
+                <div class="card shadow-sm border-warning mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <strong>Action Required</strong>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(actionError))
+                        {
+                            <div class="alert alert-danger">@actionError</div>
+                        }
+
+                        <p>You have permission to review this request.</p>
+
+                        @if (isRejecting)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Reason for rejection <span class="text-danger">*</span></label>
+                                <textarea class="form-control" rows="3" @bind="rejectReason"></textarea>
+                            </div>
+                            <button class="btn btn-danger me-2" @onclick="ConfirmReject" disabled="@isSubmitting">
+                                @if(isSubmitting) { <span class="spinner-border spinner-border-sm"></span> } Confirm Reject
+                            </button>
+                            <button class="btn btn-secondary" @onclick="CancelReject" disabled="@isSubmitting">Cancel</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success me-2" @onclick="Approve" disabled="@isSubmitting">
+                                @if(isSubmitting) { <span class="spinner-border spinner-border-sm"></span> } Approve
+                            </button>
+                            <button class="btn btn-danger" @onclick="StartReject" disabled="@isSubmitting">Reject...</button>
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+        <div class="col-md-4">
+            <h4>Audit Timeline</h4>
+            <div class="timeline mt-3">
+                @foreach (var audit in request.AuditTimeline)
+                {
+                    <div class="card mb-3 shadow-sm border-0 bg-light">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex justify-content-between text-muted small mb-1">
+                                <span>@audit.EventType</span>
+                                <span>@audit.CreatedAt.ToLocalTime().ToString("g")</span>
+                            </div>
+                            <div>
+                                @if (audit.FromStatus != null)
+                                {
+                                    <StatusBadge Status="@audit.FromStatus" /> <i class="bi bi-arrow-right mx-1"></i>
+                                }
+                                <StatusBadge Status="@audit.ToStatus" />
+                            </div>
+                            @if (!string.IsNullOrEmpty(audit.Reason))
+                            {
+                                <div class="mt-2 small text-danger fst-italic">
+                                    "@@@audit.Reason"
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private AccessRequestDetailDto? request;
+    private bool isLoading = true;
+    
+    private bool canApproveOrReject;
+    private bool isRejecting;
+    private string rejectReason = "";
+    private string? actionError;
+    private bool isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUserSvc.OnUserChanged += UpdateData;
+        await LoadDataAsync();
+    }
+
+    private async void UpdateData()
+    {
+        await LoadDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        actionError = null;
+        isRejecting = false;
+        rejectReason = "";
+
+        if (CurrentUserSvc.User == null)
+        {
+            request = null;
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            using var scope = Sp.CreateScope();
+            var scopedUserSvc = scope.ServiceProvider.GetRequiredService<CurrentUserService>();
+            scopedUserSvc.User = CurrentUserSvc.User;
+            var service = scope.ServiceProvider.GetRequiredService<AccessRequestService>();
+            request = await service.GetRequestDetailAsync(Id);
+
+            // Determine if the user can approve/reject
+            var db = scope.ServiceProvider.GetRequiredService<AccessRequestHub.Data.AppDbContext>();
+            var currentUser = CurrentUserSvc.User;
+            
+            canApproveOrReject = false;
+            if (request.Status == "PendingManager")
+            {
+                var reqUser = await db.Users.FindAsync(request.RequesterId);
+                if (reqUser?.ManagerId == currentUser.Id) canApproveOrReject = true;
+            }
+            else if (request.Status == "PendingSystemOwner")
+            {
+                var app = await db.Applications.FindAsync(request.ApplicationId);
+                if (app?.SystemOwnerId == currentUser.Id) canApproveOrReject = true;
+            }
+        }
+        catch
+        {
+            request = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task Approve()
+    {
+        if (request == null) return;
+        isSubmitting = true;
+        actionError = null;
+        
+        try
+        {
+            using var scope = Sp.CreateScope();
+            var scopedUserSvc = scope.ServiceProvider.GetRequiredService<CurrentUserService>();
+            scopedUserSvc.User = CurrentUserSvc.User;
+            var service = scope.ServiceProvider.GetRequiredService<AccessRequestService>();
+            request = await service.ApproveRequestAsync(request.Id, request.Version);
+            canApproveOrReject = false;
+        }
+        catch (AppException ex)
+        {
+            actionError = ex.Message;
+            if (ex.StatusCode == 409) await LoadDataAsync(); // Reload to get fresh version
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StartReject()
+    {
+        isRejecting = true;
+        actionError = null;
+    }
+
+    private void CancelReject()
+    {
+        isRejecting = false;
+        rejectReason = "";
+        actionError = null;
+    }
+
+    private async Task ConfirmReject()
+    {
+        if (request == null) return;
+        if (string.IsNullOrWhiteSpace(rejectReason))
+        {
+            actionError = "Rejection reason is required.";
+            return;
+        }
+
+        isSubmitting = true;
+        actionError = null;
+        
+        try
+        {
+            using var scope = Sp.CreateScope();
+            var scopedUserSvc = scope.ServiceProvider.GetRequiredService<CurrentUserService>();
+            scopedUserSvc.User = CurrentUserSvc.User;
+            var service = scope.ServiceProvider.GetRequiredService<AccessRequestService>();
+            request = await service.RejectRequestAsync(request.Id, request.Version, rejectReason);
+            canApproveOrReject = false;
+            isRejecting = false;
+        }
+        catch (AppException ex)
+        {
+            actionError = ex.Message;
+            if (ex.StatusCode == 409) await LoadDataAsync(); // Reload to get fresh version
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        CurrentUserSvc.OnUserChanged -= UpdateData;
+    }
+}

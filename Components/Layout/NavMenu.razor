@@ -1,30 +1,114 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+@using AccessRequestHub.Services
+@using Microsoft.Extensions.DependencyInjection
+@using AccessRequestHub.Data
+@using AccessRequestHub.Endpoints
+@using Microsoft.EntityFrameworkCore
+@inject CurrentUserService CurrentUserSvc
+@inject IServiceProvider Sp
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">AccessRequestHub</a>
+        <a class="navbar-brand" href="">Access Request Hub</a>
     </div>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> User Access Requests
-            </NavLink>
+    <nav class="flex-column">
+        <div class="nav-item px-3 py-2">
+            <UserSwitcher />
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> try
-            </NavLink>
-        </div>
+        @if (profile != null)
+        {
+            @if (profile.CanCreate)
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="bi bi-plus-circle-fill" aria-hidden="true"></span> Create Request
+                    </NavLink>
+                </div>
+            }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
+            @if (profile.Role != "Auditor")
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="my-requests">
+                        <span class="bi bi-list-ul" aria-hidden="true"></span> My Requests
+                    </NavLink>
+                </div>
+            }
+
+            @if (profile.IsManager || profile.OwnedApplications.Any())
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="inbox">
+                        <span class="bi bi-inbox-fill" aria-hidden="true"></span> Approval Inbox
+                    </NavLink>
+                </div>
+            }
+
+            @if (profile.CanViewAll)
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="all-requests">
+                        <span class="bi bi-globe" aria-hidden="true"></span> All Requests
+                    </NavLink>
+                </div>
+            }
+        }
     </nav>
 </div>
 
+@code {
+    private UserProfileDto? profile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUserSvc.OnUserChanged += UpdateProfile;
+        await LoadProfileAsync();
+    }
+
+    private async void UpdateProfile()
+    {
+        await LoadProfileAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        if (CurrentUserSvc.User == null)
+        {
+            profile = null;
+            return;
+        }
+
+        using var scope = Sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        
+        var user = CurrentUserSvc.User;
+        var isManager = await db.Users.AnyAsync(u => u.ManagerId == user.Id);
+        var ownedApps = await db.Applications
+            .Where(a => a.SystemOwnerId == user.Id)
+            .Select(a => new OwnedApplicationDto(a.Id, a.Name))
+            .ToListAsync();
+
+        profile = new UserProfileDto(
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            user.Role.ToString(),
+            user.ManagerId.HasValue,
+            isManager,
+            ownedApps.ToArray(),
+            user.Role == AccessRequestHub.Models.UserRole.Auditor
+        );
+    }
+
+    public void Dispose()
+    {
+        CurrentUserSvc.OnUserChanged -= UpdateProfile;
+    }
+}

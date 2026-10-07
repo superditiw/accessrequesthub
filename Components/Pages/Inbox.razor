@@ -1,0 +1,109 @@
+@page "/inbox"
+@using AccessRequestHub.DTOs
+@using AccessRequestHub.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject CurrentUserService CurrentUserSvc
+@inject IServiceProvider Sp
+@implements IDisposable
+
+<PageTitle>Approval Inbox</PageTitle>
+
+<h1>Approval Inbox</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (requests == null || !requests.Any())
+{
+    <div class="alert alert-info">Your inbox is empty.</div>
+}
+else
+{
+    <table class="table table-striped table-hover mt-3">
+        <thead class="table-dark">
+            <tr>
+                <th>App</th>
+                <th>Env</th>
+                <th>Access</th>
+                <th>High Risk</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var req in requests)
+            {
+                <tr>
+                    <td>@req.ApplicationName</td>
+                    <td><span class="badge bg-secondary">@req.Environment</span></td>
+                    <td>@req.AccessLevel</td>
+                    <td>
+                        @if (req.IsHighRisk)
+                        {
+                            <span class="badge bg-danger">Yes</span>
+                        }
+                    </td>
+                    <td>
+                        <StatusBadge Status="@req.Status" />
+                    </td>
+                    <td>@req.CreatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <a href="/requests/@req.Id" class="btn btn-sm btn-outline-primary">Review</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AccessRequestListDto>? requests;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUserSvc.OnUserChanged += UpdateData;
+        await LoadDataAsync();
+    }
+
+    private async void UpdateData()
+    {
+        await LoadDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        if (CurrentUserSvc.User == null)
+        {
+            requests = null;
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            using var scope = Sp.CreateScope();
+            var scopedUserSvc = scope.ServiceProvider.GetRequiredService<CurrentUserService>();
+            scopedUserSvc.User = CurrentUserSvc.User;
+            var service = scope.ServiceProvider.GetRequiredService<AccessRequestService>();
+            requests = await service.GetInboxAsync();
+        }
+        catch
+        {
+            requests = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        CurrentUserSvc.OnUserChanged -= UpdateData;
+    }
+}
