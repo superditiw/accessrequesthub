@@ -175,10 +175,10 @@ Semua halaman memiliki state loading, empty, error, dan conflict (409) yang jela
 
 Satu item = satu sesi chat = satu commit.
 
-- [ ] 0. Template Blazor Server, `.gitignore`, commit, tag `assessment-start`
-- [ ] 0b. Commit PLAN.md (dan file aturan untuk agent)
-- [ ] 1. Entity, DbContext (Fluent), migration + trigger append-only, seeder
-- [ ] 2. Current-user resolver (header), `/api/me`, format error global
+- [x] 0. Template Blazor Server, `.gitignore`, commit, tag `assessment-start`
+- [x] 0b. Commit PLAN.md (dan file aturan untuk agent)
+- [x] 1. Entity, DbContext (Fluent), migration + trigger append-only, seeder
+- [x] 2. Current-user resolver (header), `/api/me`, format error global
 - [ ] 3. Create request + validasi + idempotency
 - [ ] 4. My Requests, detail + audit timeline, inbox, All Requests (Auditor)
 - [ ] 5. Approve (manager, system owner) + version check + audit atomic
