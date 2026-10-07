@@ -68,7 +68,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<AuditEvent>(b =>
         {
-            b.HasOne(a => a.AccessRequest).WithMany().HasForeignKey(a => a.AccessRequestId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(a => a.AccessRequest).WithMany(r => r.AuditEvents).HasForeignKey(a => a.AccessRequestId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(a => a.ActorUser).WithMany().HasForeignKey(a => a.ActorUserId).OnDelete(DeleteBehavior.Restrict);
             
             b.ToTable(t => t.HasCheckConstraint("CK_audit_events_reason", "(event_type NOT IN ('ManagerRejected', 'OwnerRejected')) OR (reason IS NOT NULL AND length(trim(reason)) > 0)"));

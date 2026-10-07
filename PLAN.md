@@ -183,7 +183,7 @@ Satu item = satu sesi chat = satu commit.
 - [x] 4. My Requests, detail + audit timeline, inbox, All Requests (Auditor)
 - [x] 5. Approve (manager, system owner) + version check + audit atomic
 - [x] 6. Reject + reason + audit
-- [ ] 7. Integration tests (bagian 12)
+- [x] 7. Integration tests (bagian 12)
 - [ ] 8. Blazor UI: user switcher, tab per user, create form, list/detail, inbox
 - [ ] 9. README, REVIEW.md, AI_USAGE.md, INTEGRITY.md
 - [ ] 10. Jalankan semua test dari database baru, tag `phase-1-complete`

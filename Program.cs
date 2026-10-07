@@ -19,6 +19,11 @@ builder.Services.AddScoped<AccessRequestService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -55,3 +60,5 @@ app.MapUserEndpoints();
 app.MapRequestEndpoints();
 
 app.Run();
+
+public partial class Program { }
