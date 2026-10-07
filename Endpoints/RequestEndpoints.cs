@@ -62,5 +62,11 @@ public static class RequestEndpoints
             var result = await accessRequestService.GetAllRequestsAsync();
             return Results.Ok(result);
         });
+
+        app.MapPost("/api/requests/{id:guid}/approve", async (System.Guid id, [FromBody] ApproveRequestDto payload, AccessRequestService accessRequestService) =>
+        {
+            var result = await accessRequestService.ApproveRequestAsync(id, payload.ExpectedVersion);
+            return Results.Ok(result);
+        });
     }
 }

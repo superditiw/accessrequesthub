@@ -215,4 +215,86 @@ public class AccessRequestService
             );
         }).ToList();
     }
+
+    public async Task<AccessRequestDetailDto> ApproveRequestAsync(Guid requestId, int expectedVersion)
+    {
+        var currentUser = GetCurrentUser();
+
+        var request = await _db.AccessRequests
+            .Include(r => r.Application)
+            .Include(r => r.Requester)
+            .Include(r => r.AuditEvents)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null)
+            throw new AppException(404, "NotFound", "Request not found");
+
+        if (request.Status == RequestStatus.Approved || request.Status == RequestStatus.Rejected)
+            throw new AppException(409, "Conflict", "Request is already in a terminal state");
+
+        if (request.Version != expectedVersion)
+            throw new AppException(409, "Conflict", "Version mismatch - stale data");
+
+        if (currentUser.Id == request.RequesterId)
+            throw new AppException(403, "Forbidden", "You cannot approve your own request");
+
+        if (currentUser.Role == UserRole.Auditor)
+            throw new AppException(403, "Forbidden", "Auditors cannot approve requests");
+
+        var oldStatus = request.Status;
+        RequestStatus newStatus;
+        AuditEventType eventType;
+
+        if (request.Status == RequestStatus.PendingManager)
+        {
+            if (request.Requester!.ManagerId != currentUser.Id)
+                throw new AppException(403, "Forbidden", "You are not the manager of this requester");
+
+            newStatus = request.IsHighRisk ? RequestStatus.PendingSystemOwner : RequestStatus.Approved;
+            eventType = AuditEventType.ManagerApproved;
+        }
+        else if (request.Status == RequestStatus.PendingSystemOwner)
+        {
+            if (request.Application!.SystemOwnerId != currentUser.Id)
+                throw new AppException(403, "Forbidden", "You are not the system owner of this application");
+
+            newStatus = RequestStatus.Approved;
+            eventType = AuditEventType.OwnerApproved;
+        }
+        else
+        {
+            throw new AppException(400, "BadRequest", "Invalid status for approval");
+        }
+
+        request.Status = newStatus;
+        request.Version += 1;
+        request.UpdatedAt = DateTime.UtcNow;
+
+        var auditEvent = new AuditEvent
+        {
+            Id = Guid.NewGuid(),
+            AccessRequestId = request.Id,
+            ActorUserId = currentUser.Id,
+            EventType = eventType,
+            FromStatus = oldStatus,
+            ToStatus = newStatus,
+            Reason = null,
+            VersionAfter = request.Version,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.AuditEvents.Add(auditEvent);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new AppException(409, "Conflict", "The request was modified by another user");
+        }
+
+        // Return updated detail
+        return await GetRequestDetailAsync(request.Id);
+    }
 }

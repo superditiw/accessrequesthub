@@ -11,6 +11,8 @@ public record CreateRequestDto(
     string Justification
 );
 
+public record ApproveRequestDto(int ExpectedVersion);
+
 public record AccessRequestResponseDto(
     Guid Id,
     Guid ClientRequestId,

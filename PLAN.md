@@ -181,7 +181,7 @@ Satu item = satu sesi chat = satu commit.
 - [x] 2. Current-user resolver (header), `/api/me`, format error global
 - [x] 3. Create request + validasi + idempotency
 - [x] 4. My Requests, detail + audit timeline, inbox, All Requests (Auditor)
-- [ ] 5. Approve (manager, system owner) + version check + audit atomic
+- [x] 5. Approve (manager, system owner) + version check + audit atomic
 - [ ] 6. Reject + reason + audit
 - [ ] 7. Integration tests (bagian 12)
 - [ ] 8. Blazor UI: user switcher, tab per user, create form, list/detail, inbox
