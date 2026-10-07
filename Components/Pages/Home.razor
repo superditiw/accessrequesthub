@@ -14,13 +14,7 @@
 
 <h1>Create Access Request</h1>
 
-@if (profile != null && !profile.CanCreate)
-{
-    <div class="alert alert-warning">
-        You do not have a manager assigned, so you cannot create access requests.
-    </div>
-}
-else if (profile != null)
+@if (profile != null)
 {
     <div class="card p-4 mt-4 shadow-sm" style="max-width: 600px;">
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -166,7 +160,7 @@ else if (profile != null)
             );
             
             var (request, isNew) = await service.CreateRequestAsync(payload);
-            successMessage = $"Request created successfully! ID: {request.Id}";
+            successMessage = "Request created successfully!";
             model = new CreateRequestModel(); // Reset form
         }
         catch (AppException ex)

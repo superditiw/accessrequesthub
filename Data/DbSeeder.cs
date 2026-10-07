@@ -17,8 +17,6 @@ public static class DbSeeder
         var erin = new User { Id = Guid.NewGuid(), Email = "erin@example.com", DisplayName = "Erin", Role = UserRole.Auditor };
 
         alice.ManagerId = bob.Id;
-        bob.ManagerId = carol.Id;
-        carol.ManagerId = dana.Id;
 
         context.Users.AddRange(dana, carol, bob, alice, erin);
         context.SaveChanges();

@@ -18,7 +18,7 @@
         {
             @foreach (var u in users)
             {
-                <option value="@u.Id" selected="@(u.Id == CurrentUserSvc.User?.Id)">@u.DisplayName (@u.Role)</option>
+                <option value="@u.Id" selected="@(u.Id == CurrentUserSvc.User?.Id)">@u.DisplayName (@GetRoleDisplay(u))</option>
             }
         }
     </select>
@@ -26,12 +26,14 @@
 
 @code {
     private List<User>? users;
+    private List<Application>? apps;
 
     protected override async Task OnInitializedAsync()
     {
         using var scope = Sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         users = await db.Users.ToListAsync();
+        apps = await db.Applications.ToListAsync();
 
         if (CurrentUserSvc.User == null && users.Any())
         {
@@ -51,5 +53,13 @@
                 CurrentUserSvc.SetUser(user);
             }
         }
+    }
+
+    private string GetRoleDisplay(User u)
+    {
+        if (u.Role == UserRole.Auditor) return "Auditor";
+        if (apps != null && apps.Any(a => a.SystemOwnerId == u.Id)) return "System Owner";
+        if (users != null && users.Any(x => x.ManagerId == u.Id)) return "Manager";
+        return "Employee";
     }
 }

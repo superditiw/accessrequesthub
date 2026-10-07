@@ -185,8 +185,8 @@ Satu item = satu sesi chat = satu commit.
 - [x] 6. Reject + reason + audit
 - [x] 7. Integration tests (bagian 12)
 - [x] 8. Blazor UI: user switcher, tab per user, create form, list/detail, inbox
-- [ ] 9. README, REVIEW.md, AI_USAGE.md, INTEGRITY.md
-- [ ] 10. Jalankan semua test dari database baru, tag `phase-1-complete`
+- [x] 9. README, REVIEW.md, AI_USAGE.md, INTEGRITY.md
+- [x] 10. Jalankan semua test dari database baru, tag `phase-1-complete`
 
 Jika waktu mendekati 8 jam: berhenti di state stabil, prioritaskan item 1-7 (backend benar dan teruji) di atas kelengkapan UI, lalu catat yang belum selesai di REVIEW.md.
 
