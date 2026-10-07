@@ -38,5 +38,29 @@ public static class RequestEndpoints
             
             return Results.Ok(response);
         });
+
+        app.MapGet("/api/requests/mine", async (AccessRequestService accessRequestService) =>
+        {
+            var result = await accessRequestService.GetMyRequestsAsync();
+            return Results.Ok(result);
+        });
+
+        app.MapGet("/api/requests/{id:guid}", async (System.Guid id, AccessRequestService accessRequestService) =>
+        {
+            var result = await accessRequestService.GetRequestDetailAsync(id);
+            return Results.Ok(result);
+        });
+
+        app.MapGet("/api/inbox", async (AccessRequestService accessRequestService) =>
+        {
+            var result = await accessRequestService.GetInboxAsync();
+            return Results.Ok(result);
+        });
+
+        app.MapGet("/api/requests", async (AccessRequestService accessRequestService) =>
+        {
+            var result = await accessRequestService.GetAllRequestsAsync();
+            return Results.Ok(result);
+        });
     }
 }

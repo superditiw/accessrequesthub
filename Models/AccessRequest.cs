@@ -23,4 +23,6 @@ public class AccessRequest
     public User? Requester { get; set; }
     public Application? Application { get; set; }
     public PolicyVersion? PolicyVersion { get; set; }
+    
+    public System.Collections.Generic.ICollection<AuditEvent>? AuditEvents { get; set; }
 }
