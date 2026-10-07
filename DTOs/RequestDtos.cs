@@ -13,6 +13,8 @@ public record CreateRequestDto(
 
 public record ApproveRequestDto(int ExpectedVersion);
 
+public record RejectRequestDto(int ExpectedVersion, string Reason);
+
 public record AccessRequestResponseDto(
     Guid Id,
     Guid ClientRequestId,

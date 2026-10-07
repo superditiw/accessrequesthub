@@ -297,4 +297,85 @@ public class AccessRequestService
         // Return updated detail
         return await GetRequestDetailAsync(request.Id);
     }
+
+    public async Task<AccessRequestDetailDto> RejectRequestAsync(Guid requestId, int expectedVersion, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new AppException(400, "BadRequest", "rejection reason is required");
+
+        var currentUser = GetCurrentUser();
+
+        var request = await _db.AccessRequests
+            .Include(r => r.Application)
+            .Include(r => r.Requester)
+            .Include(r => r.AuditEvents)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null)
+            throw new AppException(404, "NotFound", "Request not found");
+
+        if (request.Status == RequestStatus.Approved || request.Status == RequestStatus.Rejected)
+            throw new AppException(409, "Conflict", "Request is already in a terminal state");
+
+        if (request.Version != expectedVersion)
+            throw new AppException(409, "Conflict", "Version mismatch - stale data");
+
+        if (currentUser.Id == request.RequesterId)
+            throw new AppException(403, "Forbidden", "You cannot reject your own request");
+
+        if (currentUser.Role == UserRole.Auditor)
+            throw new AppException(403, "Forbidden", "Auditors cannot reject requests");
+
+        var oldStatus = request.Status;
+        AuditEventType eventType;
+
+        if (request.Status == RequestStatus.PendingManager)
+        {
+            if (request.Requester!.ManagerId != currentUser.Id)
+                throw new AppException(403, "Forbidden", "You are not the manager of this requester");
+
+            eventType = AuditEventType.ManagerRejected;
+        }
+        else if (request.Status == RequestStatus.PendingSystemOwner)
+        {
+            if (request.Application!.SystemOwnerId != currentUser.Id)
+                throw new AppException(403, "Forbidden", "You are not the system owner of this application");
+
+            eventType = AuditEventType.OwnerRejected;
+        }
+        else
+        {
+            throw new AppException(400, "BadRequest", "Invalid status for rejection");
+        }
+
+        request.Status = RequestStatus.Rejected;
+        request.Version += 1;
+        request.UpdatedAt = DateTime.UtcNow;
+
+        var auditEvent = new AuditEvent
+        {
+            Id = Guid.NewGuid(),
+            AccessRequestId = request.Id,
+            ActorUserId = currentUser.Id,
+            EventType = eventType,
+            FromStatus = oldStatus,
+            ToStatus = RequestStatus.Rejected,
+            Reason = reason,
+            VersionAfter = request.Version,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.AuditEvents.Add(auditEvent);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new AppException(409, "Conflict", "The request was modified by another user");
+        }
+
+        return await GetRequestDetailAsync(request.Id);
+    }
 }
